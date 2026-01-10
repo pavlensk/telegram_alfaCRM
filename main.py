@@ -25,7 +25,7 @@ if not BOT_TOKEN:
 if not ALFA_EMAIL or not ALFA_API_KEY:
     raise RuntimeError("ALFA_EMAIL / ALFA_API_KEY is not set")
 
-BTN_SEARCH_PHONE = "Поиск по номеру телефона"
+BTN_SEARCH_PHONE = "РџРѕРёСЃРє РїРѕ РЅРѕРјРµСЂСѓ С‚РµР»РµС„РѕРЅР°"
 
 def normalize_ru_phone_to_plus7(text: str) -> Optional[str]:
     """
@@ -70,7 +70,7 @@ class AlfaCRMClient:
         return token
 
     async def get_token(self, client: httpx.AsyncClient) -> str:
-        # Простейший TTL-кэш на 12 часов (можно менять)
+        # РџСЂРѕСЃС‚РµР№С€РёР№ TTL-РєСЌС€ РЅР° 12 С‡Р°СЃРѕРІ (РјРѕР¶РЅРѕ РјРµРЅСЏС‚СЊ)
         async with self._lock:
             if self._token and (time.time() - self._token_ts) < 12 * 3600:
                 return self._token
@@ -90,7 +90,7 @@ class AlfaCRMClient:
 
             r = await client.post(CUSTOMER_INDEX_URL, json=payload, headers=headers, timeout=20)
 
-            # если токен протух — релогин 1 раз
+            # РµСЃР»Рё С‚РѕРєРµРЅ РїСЂРѕС‚СѓС… вЂ” СЂРµР»РѕРіРёРЅ 1 СЂР°Р·
             if r.status_code in (401, 403):
                 async with self._lock:
                     self._token = None
@@ -127,62 +127,62 @@ async def main():
     dp = Dispatcher()
     alfa = AlfaCRMClient(ALFA_EMAIL, ALFA_API_KEY)
 
-    # Простое состояние "ожидаем телефон" через флаг в памяти на пользователя
+    # РџСЂРѕСЃС‚РѕРµ СЃРѕСЃС‚РѕСЏРЅРёРµ "РѕР¶РёРґР°РµРј С‚РµР»РµС„РѕРЅ" С‡РµСЂРµР· С„Р»Р°Рі РІ РїР°РјСЏС‚Рё РЅР° РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ
     waiting_phone = set()
 
     @dp.message(CommandStart())
     async def start(m: Message):
         await m.answer(
-            "Выберите действие кнопкой ниже.",
+            "Р’С‹Р±РµСЂРёС‚Рµ РґРµР№СЃС‚РІРёРµ РєРЅРѕРїРєРѕР№ РЅРёР¶Рµ.",
             reply_markup=kb_main()
         )
 
     @dp.message(F.text == BTN_SEARCH_PHONE)
     async def ask_phone(m: Message):
         waiting_phone.add(m.from_user.id)
-        await m.answer("Отправьте номер телефона РФ (например +79233388881 или 89233388881).")
+        await m.answer("РћС‚РїСЂР°РІСЊС‚Рµ РЅРѕРјРµСЂ С‚РµР»РµС„РѕРЅР° Р Р¤ (РЅР°РїСЂРёРјРµСЂ +79233388881 РёР»Рё 89233388881).")
 
     @dp.message(F.text)
     async def handle_text(m: Message):
         uid = m.from_user.id
 
-        # Если пользователь не нажал кнопку — подскажем
+        # Р•СЃР»Рё РїРѕР»СЊР·РѕРІР°С‚РµР»СЊ РЅРµ РЅР°Р¶Р°Р» РєРЅРѕРїРєСѓ вЂ” РїРѕРґСЃРєР°Р¶РµРј
         if uid not in waiting_phone:
-            await m.answer("Нажмите кнопку «Поиск по номеру телефона».", reply_markup=kb_main())
+            await m.answer("РќР°Р¶РјРёС‚Рµ РєРЅРѕРїРєСѓ В«РџРѕРёСЃРє РїРѕ РЅРѕРјРµСЂСѓ С‚РµР»РµС„РѕРЅР°В».", reply_markup=kb_main())
             return
 
         phone = normalize_ru_phone_to_plus7(m.text or "")
         if not phone:
-            await m.answer("Неверный формат. Пример: +79233388881 или 89233388881.")
+            await m.answer("РќРµРІРµСЂРЅС‹Р№ С„РѕСЂРјР°С‚. РџСЂРёРјРµСЂ: +79233388881 РёР»Рё 89233388881.")
             return
 
         waiting_phone.discard(uid)
-        await m.answer(f"Ищу клиента по номеру: {phone}")
+        await m.answer(f"РС‰Сѓ РєР»РёРµРЅС‚Р° РїРѕ РЅРѕРјРµСЂСѓ: {phone}")
 
         try:
             resp = await alfa.customer_search_by_phone(phone)
             customer = extract_customer_fields(resp)
             if not customer:
-                await m.answer("Клиент не найден.", reply_markup=kb_main())
+                await m.answer("РљР»РёРµРЅС‚ РЅРµ РЅР°Р№РґРµРЅ.", reply_markup=kb_main())
                 return
 
-            legal_name = customer["legal_name"] or "—"
+            legal_name = customer["legal_name"] or "вЂ”"
             balance = customer["balance"]
             paid_lesson_count = customer["paid_lesson_count"]
 
-            # на всякий случай приводим пустые значения
-            balance_txt = str(balance) if balance is not None else "—"
-            paid_txt = str(paid_lesson_count) if paid_lesson_count is not None else "—"
+            # РЅР° РІСЃСЏРєРёР№ СЃР»СѓС‡Р°Р№ РїСЂРёРІРѕРґРёРј РїСѓСЃС‚С‹Рµ Р·РЅР°С‡РµРЅРёСЏ
+            balance_txt = str(balance) if balance is not None else "вЂ”"
+            paid_txt = str(paid_lesson_count) if paid_lesson_count is not None else "вЂ”"
 
             await m.answer(
-                f"Клиент: {legal_name}\n"
-                f"Баланс: {balance_txt}\n"
-                f"Оплаченных уроков: {paid_txt}",
+                f"РљР»РёРµРЅС‚: {legal_name}\n"
+                f"Р‘Р°Р»Р°РЅСЃ: {balance_txt}\n"
+                f"РћРїР»Р°С‡РµРЅРЅС‹С… СѓСЂРѕРєРѕРІ: {paid_txt}",
                 reply_markup=kb_main()
             )
 
         except Exception as e:
-            await m.answer(f"Ошибка при запросе к AlfaCRM: {e}", reply_markup=kb_main())
+            await m.answer(f"РћС€РёР±РєР° РїСЂРё Р·Р°РїСЂРѕСЃРµ Рє AlfaCRM: {e}", reply_markup=kb_main())
 
     await dp.start_polling(bot)
 
