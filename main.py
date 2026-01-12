@@ -1,3 +1,4 @@
+# main.py
 import os
 import re
 import time
@@ -40,12 +41,12 @@ if not ALFA_EMAIL or not ALFA_API_KEY:
     raise RuntimeError("ALFA_EMAIL / ALFA_API_KEY is not set")
 
 # ---- UI labels ----
-BTN_SWIMMING = "swimming"
-BTN_RUNNING = "running"
-BTN_TRIATHLON = "triathlon"
+BTN_SWIMMING = "🏊‍♂️ Swimming"
+BTN_RUNNING = "🏃‍♂️ Running"
+BTN_TRIATHLON = "🏊‍♂️🚴‍♂️🏃‍♂️ Triathlon"
 BTN_BACK = "Назад"
 
-BTN_ASK_COORDINATOR = "Задать вопрос координатору"
+BTN_WRITE_COORDINATOR = "Написать координатору"
 BTN_LESSON_REMAINDER = "Остаток занятий"
 
 class Section(str, Enum):
@@ -115,6 +116,7 @@ class AlfaCRMClient:
 
             r = await client.post(CUSTOMER_INDEX_URL, json=payload, headers=headers, timeout=20)
 
+            # token мог протухнуть
             if r.status_code in (401, 403):
                 async with self.lock:
                     self.token = None
@@ -153,21 +155,15 @@ def kb_root_inline() -> InlineKeyboardMarkup:
     )
 
 def kb_section_inline(section: Section) -> InlineKeyboardMarkup:
+    hello = HELLO_BY_SECTION.get(section, "Привет")
+    link = coordinator_link(hello)
+
     s = section.value
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text=BTN_ASK_COORDINATOR, callback_data=f"act:ask_coord:{s}")],
+            [InlineKeyboardButton(text=BTN_WRITE_COORDINATOR, url=link)],
             [InlineKeyboardButton(text=BTN_LESSON_REMAINDER, callback_data=f"act:lesson_remainder:{s}")],
             [InlineKeyboardButton(text=BTN_BACK, callback_data="nav:root")],
-        ]
-    )
-
-def kb_coordinator_link(section: Section, link: str) -> InlineKeyboardMarkup:
-    s = section.value
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text="Написать координатору", url=link)],
-            [InlineKeyboardButton(text=BTN_BACK, callback_data=f"nav:section:{s}")],
         ]
     )
 
@@ -183,6 +179,9 @@ async def ensure_menu_message(
     text: str,
     markup: InlineKeyboardMarkup,
 ) -> None:
+    """
+    Гарантирует одно “меню-сообщение”: если уже есть — редактируем, иначе создаём.
+    """
     uid = m.from_user.id
     msg_id = menu_msg_id_by_user.get(uid)
     if msg_id:
@@ -206,6 +205,10 @@ async def edit_menu_message(
     text: str,
     markup: InlineKeyboardMarkup,
 ) -> None:
+    """
+    Редактирует меню в callback. Если callback пришёл не от “того” сообщения — всё равно
+    редактируем текущее меню, либо текущее сообщение callback.
+    """
     uid = cq.from_user.id
     await cq.answer()
 
@@ -230,7 +233,7 @@ async def edit_menu_message(
         menu_msg_id_by_user[uid] = sent.message_id
 
 def parse_section(raw: str) -> Section:
-    return Section(raw)  # бросит ValueError если мусор
+    return Section(raw)  # ValueError если мусор
 
 async def main():
     bot = Bot(BOT_TOKEN)
@@ -257,20 +260,6 @@ async def main():
         section = parse_section(raw)
         await edit_menu_message(cq, menu_msg_id_by_user, title_section(section), kb_section_inline(section))
 
-    @dp.callback_query(F.data.startswith("act:ask_coord:"))
-    async def act_ask_coord(cq: CallbackQuery):
-        raw = (cq.data or "").split(":")[-1]
-        section = parse_section(raw)
-
-        hello = HELLO_BY_SECTION.get(section, "Привет")
-        link = coordinator_link(hello)
-        await edit_menu_message(
-            cq,
-            menu_msg_id_by_user,
-            text="Нажмите кнопку:",
-            markup=kb_coordinator_link(section, link),
-        )
-
     @dp.callback_query(F.data.startswith("act:lesson_remainder:"))
     async def act_lesson_remainder(cq: CallbackQuery):
         raw = (cq.data or "").split(":")[-1]
@@ -290,7 +279,7 @@ async def main():
 
         section = waiting_phone_section_by_user.get(uid)
         if section is None:
-            # пользователь пишет “что-то” — просто возвращаем к текущему root-меню (без состояний)
+            # пользователь пишет что-то вне сценария — возвращаем к root-меню без хранения экрана
             await ensure_menu_message(m, menu_msg_id_by_user, title_root(), kb_root_inline())
             return
 
