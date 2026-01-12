@@ -217,7 +217,7 @@ async def main():
 
         hello = HELLO_BY_SCREEN.get(scr, "Привет!")
         link = coordinator_link(hello)
-        await m.answer(" ", reply_markup=kb_coordinator(link))
+        await m.answer("Нажмите кнопку:", reply_markup=kb_coordinator(link))
 
     # ---- Остаток занятий ----
     @dp.message(F.text == BTN_LESSON_REMAINDER)
