@@ -8,7 +8,12 @@ from typing import Optional, Dict, Any, List
 
 import httpx
 from aiogram import Bot, Dispatcher, F
-from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import (
+    Message,
+    InlineKeyboardMarkup,
+    InlineKeyboardButton,
+    CallbackQuery,
+)
 from aiogram.filters import CommandStart
 from dotenv import load_dotenv
 
@@ -20,11 +25,11 @@ ALFA_API_KEY = (os.getenv("ALFA_API_KEY") or "").strip()
 
 COORDINATOR_USERNAME = (os.getenv("COORDINATOR_USERNAME") or "").strip()
 if not COORDINATOR_USERNAME:
-    raise RuntimeError("COORDINATOR_USERNAME is not set!")
+    raise RuntimeError("COORDINATOR_USERNAME is not set")
 
 ALFA_BASE = (os.getenv("ALFA_BASE") or "").strip().rstrip("/")
 if not ALFA_BASE:
-    raise RuntimeError("ALFA_BASE is not set!")
+    raise RuntimeError("ALFA_BASE is not set")
 
 LOGIN_URL = f"{ALFA_BASE}/v2api/auth/login"
 CUSTOMER_INDEX_URL = f"{ALFA_BASE}/v2api/3/customer/index"
@@ -34,7 +39,7 @@ if not BOT_TOKEN:
 if not ALFA_EMAIL or not ALFA_API_KEY:
     raise RuntimeError("ALFA_EMAIL / ALFA_API_KEY is not set")
 
-# ----- UI -----
+# ---- UI labels ----
 BTN_SWIMMING = "swimming"
 BTN_RUNNING = "running"
 BTN_TRIATHLON = "triathlon"
@@ -43,41 +48,15 @@ BTN_BACK = "Назад"
 BTN_ASK_COORDINATOR = "Задать вопрос координатору"
 BTN_LESSON_REMAINDER = "Остаток занятий"
 
-def kb_root() -> ReplyKeyboardMarkup:
-    return ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text=BTN_SWIMMING)],
-            [KeyboardButton(text=BTN_RUNNING)],
-            [KeyboardButton(text=BTN_TRIATHLON)],
-        ],
-        resize_keyboard=True,
-    )
-
-def kb_section() -> ReplyKeyboardMarkup:
-    return ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text=BTN_ASK_COORDINATOR)],
-            [KeyboardButton(text=BTN_LESSON_REMAINDER)],
-            [KeyboardButton(text=BTN_BACK)],
-        ],
-        resize_keyboard=True,
-    )
-
-def kb_coordinator(link: str) -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Написать координатору", url=link)]
-    ])
-
-class Screen(str, Enum):
-    ROOT = "root"
+class Section(str, Enum):
     SWIMMING = "swimming"
     RUNNING = "running"
     TRIATHLON = "triathlon"
 
-HELLO_BY_SCREEN: Dict[Screen, str] = {
-    Screen.SWIMMING: "💙 Привет!",
-    Screen.RUNNING: "💚 Привет!",
-    Screen.TRIATHLON: "💜 Привет!",
+HELLO_BY_SECTION: Dict[Section, str] = {
+    Section.SWIMMING: "Привет",
+    Section.RUNNING: "Привет",
+    Section.TRIATHLON: "Привет",
 }
 
 def normalize_ru_phone_to_plus7(text: str) -> Optional[str]:
@@ -93,15 +72,15 @@ def normalize_ru_phone_to_plus7(text: str) -> Optional[str]:
     return digits
 
 class AlfaCRMClient:
-    def __init__(self, email: str, api_key: str):
+    def __init__(self, email: str, apikey: str):
         self.email = email
-        self.api_key = api_key
+        self.apikey = apikey
         self.token: Optional[str] = None
         self.token_ts: float = 0.0
         self.lock = asyncio.Lock()
 
     async def login(self, client: httpx.AsyncClient) -> str:
-        payload = {"email": self.email, "api_key": self.api_key}
+        payload = {"email": self.email, "api_key": self.apikey}
         headers = {"Accept": "application/json", "Content-Type": "application/json"}
 
         r = await client.post(LOGIN_URL, json=payload, headers=headers, timeout=20)
@@ -145,7 +124,7 @@ class AlfaCRMClient:
                 r = await client.post(CUSTOMER_INDEX_URL, json=payload, headers=headers, timeout=20)
 
             if r.status_code != 200:
-                raise RuntimeError(f"customerindex failed HTTP {r.status_code}: {r.text}")
+                raise RuntimeError(f"customer/index failed HTTP {r.status_code}: {r.text}")
 
             return r.json()
 
@@ -161,120 +140,210 @@ def extract_customer_fields(resp: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     }
 
 def coordinator_link(start_text: str) -> str:
-    # TG deep-link: открывает чат с юзером и подставляет текст в поле ввода
-    # (не отправляет автоматически)
     return f"https://t.me/{COORDINATOR_USERNAME}?text={urllib.parse.quote(start_text)}"
+
+# ---- Inline keyboards (callback_data carries section) ----
+def kb_root_inline() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text=BTN_SWIMMING, callback_data="nav:section:swimming")],
+            [InlineKeyboardButton(text=BTN_RUNNING, callback_data="nav:section:running")],
+            [InlineKeyboardButton(text=BTN_TRIATHLON, callback_data="nav:section:triathlon")],
+        ]
+    )
+
+def kb_section_inline(section: Section) -> InlineKeyboardMarkup:
+    s = section.value
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text=BTN_ASK_COORDINATOR, callback_data=f"act:ask_coord:{s}")],
+            [InlineKeyboardButton(text=BTN_LESSON_REMAINDER, callback_data=f"act:lesson_remainder:{s}")],
+            [InlineKeyboardButton(text=BTN_BACK, callback_data="nav:root")],
+        ]
+    )
+
+def kb_coordinator_link(section: Section, link: str) -> InlineKeyboardMarkup:
+    s = section.value
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="Написать координатору", url=link)],
+            [InlineKeyboardButton(text=BTN_BACK, callback_data=f"nav:section:{s}")],
+        ]
+    )
+
+def title_root() -> str:
+    return "Выберите раздел:"
+
+def title_section(section: Section) -> str:
+    return f"Раздел {section.value}. Выберите действие:"
+
+async def ensure_menu_message(
+    m: Message,
+    menu_msg_id_by_user: Dict[int, int],
+    text: str,
+    markup: InlineKeyboardMarkup,
+) -> None:
+    uid = m.from_user.id
+    msg_id = menu_msg_id_by_user.get(uid)
+    if msg_id:
+        try:
+            await m.bot.edit_message_text(
+                chat_id=m.chat.id,
+                message_id=msg_id,
+                text=text,
+                reply_markup=markup,
+            )
+            return
+        except Exception:
+            pass
+
+    sent = await m.answer(text, reply_markup=markup)
+    menu_msg_id_by_user[uid] = sent.message_id
+
+async def edit_menu_message(
+    cq: CallbackQuery,
+    menu_msg_id_by_user: Dict[int, int],
+    text: str,
+    markup: InlineKeyboardMarkup,
+) -> None:
+    uid = cq.from_user.id
+    await cq.answer()
+
+    msg_id = menu_msg_id_by_user.get(uid)
+    if msg_id:
+        try:
+            await cq.bot.edit_message_text(
+                chat_id=cq.message.chat.id,
+                message_id=msg_id,
+                text=text,
+                reply_markup=markup,
+            )
+            return
+        except Exception:
+            pass
+
+    try:
+        await cq.message.edit_text(text, reply_markup=markup)
+        menu_msg_id_by_user[uid] = cq.message.message_id
+    except Exception:
+        sent = await cq.message.answer(text, reply_markup=markup)
+        menu_msg_id_by_user[uid] = sent.message_id
+
+def parse_section(raw: str) -> Section:
+    return Section(raw)  # бросит ValueError если мусор
 
 async def main():
     bot = Bot(BOT_TOKEN)
     dp = Dispatcher()
     alfa = AlfaCRMClient(ALFA_EMAIL, ALFA_API_KEY)
 
-    screen_by_user: Dict[int, Screen] = {}
-    waiting_phone: set[int] = set()
-
-    def set_screen(uid: int, screen: Screen):
-        screen_by_user[uid] = screen
-        # если вышли из раздела — сбрасываем ожидание телефона
-        if screen == Screen.ROOT:
-            waiting_phone.discard(uid)
-
-    def get_screen(uid: int) -> Screen:
-        return screen_by_user.get(uid, Screen.ROOT)
+    menu_msg_id_by_user: Dict[int, int] = {}
+    waiting_phone_section_by_user: Dict[int, Section] = {}  # uid -> section
 
     @dp.message(CommandStart())
     async def start(m: Message):
-        set_screen(m.from_user.id, Screen.ROOT)
-        await m.answer("Выберите раздел:", reply_markup=kb_root())
+        waiting_phone_section_by_user.pop(m.from_user.id, None)
+        await ensure_menu_message(m, menu_msg_id_by_user, title_root(), kb_root_inline())
 
-    @dp.message(F.text == BTN_SWIMMING)
-    async def open_swimming(m: Message):
-        set_screen(m.from_user.id, Screen.SWIMMING)
-        await m.answer("Раздел swimming:", reply_markup=kb_section())
+    @dp.callback_query(F.data == "nav:root")
+    async def nav_root(cq: CallbackQuery):
+        waiting_phone_section_by_user.pop(cq.from_user.id, None)
+        await edit_menu_message(cq, menu_msg_id_by_user, title_root(), kb_root_inline())
 
-    @dp.message(F.text == BTN_RUNNING)
-    async def open_running(m: Message):
-        set_screen(m.from_user.id, Screen.RUNNING)
-        await m.answer("Раздел running:", reply_markup=kb_section())
+    @dp.callback_query(F.data.startswith("nav:section:"))
+    async def nav_section(cq: CallbackQuery):
+        waiting_phone_section_by_user.pop(cq.from_user.id, None)
+        raw = (cq.data or "").split(":")[-1]
+        section = parse_section(raw)
+        await edit_menu_message(cq, menu_msg_id_by_user, title_section(section), kb_section_inline(section))
 
-    @dp.message(F.text == BTN_TRIATHLON)
-    async def open_triathlon(m: Message):
-        set_screen(m.from_user.id, Screen.TRIATHLON)
-        await m.answer("Раздел triathlon:", reply_markup=kb_section())
+    @dp.callback_query(F.data.startswith("act:ask_coord:"))
+    async def act_ask_coord(cq: CallbackQuery):
+        raw = (cq.data or "").split(":")[-1]
+        section = parse_section(raw)
 
-    @dp.message(F.text == BTN_BACK)
-    async def back(m: Message):
-        set_screen(m.from_user.id, Screen.ROOT)
-        await m.answer("Выберите раздел:", reply_markup=kb_root())
-
-    # ---- Задать вопрос координатору ----
-    @dp.message(F.text == BTN_ASK_COORDINATOR)
-    async def ask_coordinator(m: Message):
-        scr = get_screen(m.from_user.id)
-        if scr == Screen.ROOT:
-            await m.answer("Сначала выберите раздел.", reply_markup=kb_root())
-            return
-
-        hello = HELLO_BY_SCREEN.get(scr, "Привет!")
+        hello = HELLO_BY_SECTION.get(section, "Привет")
         link = coordinator_link(hello)
-        await m.answer("Нажмите кнопку:", reply_markup=kb_coordinator(link))
+        await edit_menu_message(
+            cq,
+            menu_msg_id_by_user,
+            text="Нажмите кнопку:",
+            markup=kb_coordinator_link(section, link),
+        )
 
-    # ---- Остаток занятий ----
-    @dp.message(F.text == BTN_LESSON_REMAINDER)
-    async def ask_phone(m: Message):
-        uid = m.from_user.id
-        scr = get_screen(uid)
-        if scr == Screen.ROOT:
-            await m.answer("Сначала выберите раздел.", reply_markup=kb_root())
-            return
+    @dp.callback_query(F.data.startswith("act:lesson_remainder:"))
+    async def act_lesson_remainder(cq: CallbackQuery):
+        raw = (cq.data or "").split(":")[-1]
+        section = parse_section(raw)
 
-        waiting_phone.add(uid)
-        await m.answer("Отправьте номер телефона РФ (например 79123456789 или 89123456789).")
+        waiting_phone_section_by_user[cq.from_user.id] = section
+        await edit_menu_message(
+            cq,
+            menu_msg_id_by_user,
+            text="Отправьте номер телефона РФ (например 79123456789 или 89123456789).",
+            markup=kb_section_inline(section),
+        )
 
     @dp.message(F.text)
     async def handle_text(m: Message):
         uid = m.from_user.id
 
-        # если ждём телефон — отрабатываем текущую функциональность
-        if uid in waiting_phone:
-            phone = normalize_ru_phone_to_plus7(m.text or "")
-            if not phone:
-                await m.answer("Неверный формат. Пример: 79123456789 или 89123456789.")
-                return
-
-            waiting_phone.discard(uid)
-            await m.answer(f"Ищу клиента по номеру: {phone}")
-
-            try:
-                resp = await alfa.customer_search_by_phone(phone)
-                customer = extract_customer_fields(resp)
-                if not customer:
-                    await m.answer("Клиент не найден.", reply_markup=kb_section())
-                    return
-
-                legal_name = customer["legal_name"] or "—"
-                balance = customer["balance"]
-                paid_lesson_count = customer["paid_lesson_count"]
-
-                balance_txt = str(balance) if balance is not None else "—"
-                paid_txt = str(paid_lesson_count) if paid_lesson_count is not None else "—"
-
-                await m.answer(
-                    f"Клиент: {legal_name}\n"
-                    f"Баланс: {balance_txt}\n"
-                    f"Оплаченных уроков: {paid_txt}",
-                    reply_markup=kb_section(),
-                )
-            except Exception as e:
-                await m.answer(f"Ошибка при запросе к AlfaCRM: {e}", reply_markup=kb_section())
+        section = waiting_phone_section_by_user.get(uid)
+        if section is None:
+            # пользователь пишет “что-то” — просто возвращаем к текущему root-меню (без состояний)
+            await ensure_menu_message(m, menu_msg_id_by_user, title_root(), kb_root_inline())
             return
 
-        # иначе — мягкая подсказка
-        scr = get_screen(uid)
-        if scr == Screen.ROOT:
-            await m.answer("Выберите раздел:", reply_markup=kb_root())
-        else:
-            await m.answer("Выберите действие:", reply_markup=kb_section())
+        phone = normalize_ru_phone_to_plus7(m.text or "")
+        if not phone:
+            await m.answer("Неверный формат. Пример: 79123456789 или 89123456789.")
+            return
+
+        waiting_phone_section_by_user.pop(uid, None)
+
+        await ensure_menu_message(
+            m,
+            menu_msg_id_by_user,
+            text=f"Ищу клиента по номеру: {phone}",
+            markup=kb_section_inline(section),
+        )
+
+        try:
+            resp = await alfa.customer_search_by_phone(phone)
+            customer = extract_customer_fields(resp)
+            if not customer:
+                await ensure_menu_message(
+                    m,
+                    menu_msg_id_by_user,
+                    text="Клиент не найден.",
+                    markup=kb_section_inline(section),
+                )
+                return
+
+            legal_name = customer.get("legal_name") or "—"
+            balance = customer.get("balance")
+            paid_lesson_count = customer.get("paid_lesson_count")
+
+            balance_txt = str(balance) if balance is not None else "—"
+            paid_txt = str(paid_lesson_count) if paid_lesson_count is not None else "—"
+
+            await ensure_menu_message(
+                m,
+                menu_msg_id_by_user,
+                text=(
+                    f"Клиент: {legal_name}\n"
+                    f"Баланс: {balance_txt}\n"
+                    f"Оплаченных уроков: {paid_txt}"
+                ),
+                markup=kb_section_inline(section),
+            )
+        except Exception as e:
+            await ensure_menu_message(
+                m,
+                menu_msg_id_by_user,
+                text=f"Ошибка при запросе к AlfaCRM: {e}",
+                markup=kb_section_inline(section),
+            )
 
     await dp.start_polling(bot)
 
