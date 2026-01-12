@@ -8,7 +8,7 @@ from typing import Optional, Dict, Any, List
 
 import httpx
 from aiogram import Bot, Dispatcher, F
-from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
+from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.filters import CommandStart
 from dotenv import load_dotenv
 
@@ -62,6 +62,11 @@ def kb_section() -> ReplyKeyboardMarkup:
         ],
         resize_keyboard=True,
     )
+
+def kb_coordinator(link: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Написать координатору", url=link)]
+    ])
 
 class Screen(str, Enum):
     ROOT = "root"
@@ -212,11 +217,7 @@ async def main():
 
         hello = HELLO_BY_SCREEN.get(scr, "Привет!")
         link = coordinator_link(hello)
-        await m.answer(
-            f"Откройте чат с координатором: @{COORDINATOR_USERNAME}\n"
-            f"Или нажмите ссылку (текст уже подставится):\n{link}",
-            reply_markup=kb_section(),
-        )
+        await m.answer(" ", reply_markup=kb_coordinator(link))
 
     # ---- Остаток занятий ----
     @dp.message(F.text == BTN_LESSON_REMAINDER)
