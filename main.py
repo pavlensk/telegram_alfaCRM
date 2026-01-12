@@ -18,10 +18,9 @@ BOT_TOKEN = (os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
 ALFA_EMAIL = (os.getenv("ALFA_EMAIL") or "").strip()
 ALFA_API_KEY = (os.getenv("ALFA_API_KEY") or "").strip()
 
-# можно задавать как "supersport_krsk" или "@supersport_krsk"
 COORDINATOR_USERNAME = (os.getenv("COORDINATOR_USERNAME") or "").strip()
 if not COORDINATOR_USERNAME:
-    raise RuntimeError("ALFA_BASE is not set!")
+    raise RuntimeError("COORDINATOR_USERNAME is not set!")
 
 ALFA_BASE = (os.getenv("ALFA_BASE") or "").strip().rstrip("/")
 if not ALFA_BASE:
@@ -229,7 +228,7 @@ async def main():
             return
 
         waiting_phone.add(uid)
-        await m.answer("Отправьте номер телефона РФ (например 79233388881 или 89233388881).")
+        await m.answer("Отправьте номер телефона РФ (например 79123456789 или 89123456789).")
 
     @dp.message(F.text)
     async def handle_text(m: Message):
@@ -239,7 +238,7 @@ async def main():
         if uid in waiting_phone:
             phone = normalize_ru_phone_to_plus7(m.text or "")
             if not phone:
-                await m.answer("Неверный формат. Пример: 79233388881 или 89233388881.")
+                await m.answer("Неверный формат. Пример: 79123456789 или 89123456789.")
                 return
 
             waiting_phone.discard(uid)
