@@ -49,15 +49,20 @@ BTN_BACK = "Назад"
 BTN_WRITE_COORDINATOR = "Написать координатору"
 BTN_LESSON_REMAINDER = "Остаток занятий"
 
+BTN_SW_LEVEL = "Узнать свой уровень"
+BTN_SW_CERT = "Где получить справку для бассейна"
+BTN_SW_PREP = "Как подготовиться к тренировке"
+BTN_SW_TAKE = "Что взять с собой в бассейн"
+
 class Section(str, Enum):
     SWIMMING = "swimming"
     RUNNING = "running"
     TRIATHLON = "triathlon"
 
 HELLO_BY_SECTION: Dict[Section, str] = {
-    Section.SWIMMING: "Привет",
-    Section.RUNNING: "Привет",
-    Section.TRIATHLON: "Привет",
+    Section.SWIMMING: "💙 Привет!",
+    Section.RUNNING: "💚 Привет",
+    Section.TRIATHLON: "💜 Привет",
 }
 
 def normalize_ru_phone_to_plus7(text: str) -> Optional[str]:
@@ -159,13 +164,23 @@ def kb_section_inline(section: Section) -> InlineKeyboardMarkup:
     link = coordinator_link(hello)
 
     s = section.value
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text=BTN_WRITE_COORDINATOR, url=link)],
-            [InlineKeyboardButton(text=BTN_LESSON_REMAINDER, callback_data=f"act:lesson_remainder:{s}")],
-            [InlineKeyboardButton(text=BTN_BACK, callback_data="nav:root")],
-        ]
-    )
+
+    keyboard = [
+        [InlineKeyboardButton(text=BTN_WRITE_COORDINATOR, url=link)],
+        [InlineKeyboardButton(text=BTN_LESSON_REMAINDER, callback_data=f"act:lesson_remainder:{s}")],
+    ]
+
+    if section == Section.SWIMMING:
+        keyboard.extend([
+            [InlineKeyboardButton(text=BTN_SW_LEVEL, callback_data="sw:level")],
+            [InlineKeyboardButton(text=BTN_SW_CERT, callback_data="sw:cert")],
+            [InlineKeyboardButton(text=BTN_SW_PREP, callback_data="sw:prep")],
+            [InlineKeyboardButton(text=BTN_SW_TAKE, callback_data="sw:take")],
+        ])
+
+    keyboard.append([InlineKeyboardButton(text=BTN_BACK, callback_data="nav:root")])
+
+    return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
 def title_root() -> str:
     return "Выберите раздел:"
@@ -242,6 +257,10 @@ async def main():
 
     menu_msg_id_by_user: Dict[int, int] = {}
     waiting_phone_section_by_user: Dict[int, Section] = {}  # uid -> section
+
+    @dp.callback_query(F.data.startswith("sw:"))
+    async def swimming_placeholders(cq: CallbackQuery):
+        await cq.answer()
 
     @dp.message(CommandStart())
     async def start(m: Message):
