@@ -8,6 +8,7 @@ from enum import Enum
 from typing import Optional, Dict, Any, List
 
 import httpx
+from aiohttp import web
 from aiogram import Bot, Dispatcher, F
 from aiogram.types import (
     Message,
@@ -40,6 +41,7 @@ if not BOT_TOKEN:
 if not ALFA_EMAIL or not ALFA_API_KEY:
     raise RuntimeError("ALFA_EMAIL / ALFA_API_KEY is not set")
 
+PORT = int(os.getenv("PORT", "8000"))  # для Render
 
 # ---- UI labels ----
 BTN_SWIMMING = "🏊‍♂️ Плавание"
@@ -120,7 +122,6 @@ class AlfaCRMClient:
 
     async def get_token(self, client: httpx.AsyncClient) -> str:
         async with self.lock:
-            # 12 часов жизни токена как безопасный запас
             if self.token and (time.time() - self.token_ts) < 12 * 3600:
                 return self.token
             return await self.login(client)
@@ -143,7 +144,6 @@ class AlfaCRMClient:
                 timeout=20,
             )
 
-            # token мог протухнуть
             if r.status_code in (401, 403):
                 async with self.lock:
                     self.token = None
@@ -284,7 +284,7 @@ async def ensure_menu_message(
     markup: InlineKeyboardMarkup,
 ) -> None:
     """
-    Гарантирует одно “меню-сообщение”: если уже есть — редактируем, иначе создаём.
+    Гарантирует одно "меню-сообщение": если уже есть — редактируем, иначе создаём.
     """
     uid = m.from_user.id
     msg_id = menu_msg_id_by_user.get(uid)
@@ -298,7 +298,6 @@ async def ensure_menu_message(
             )
             return
         except Exception:
-            # можно добавить логирование при необходимости
             pass
 
     sent = await m.answer(text, reply_markup=markup)
@@ -312,7 +311,7 @@ async def edit_menu_message(
     markup: InlineKeyboardMarkup,
 ) -> None:
     """
-    Редактирует меню в callback. Если callback пришёл не от “того” сообщения —
+    Редактирует меню в callback. Если callback пришёл не от "того" сообщения —
     редактируем текущее меню, либо текущее сообщение callback.
     """
     uid = cq.from_user.id
@@ -329,7 +328,6 @@ async def edit_menu_message(
             )
             return
         except Exception:
-            # можно добавить логирование при необходимости
             pass
 
     try:
@@ -344,18 +342,35 @@ def parse_section(raw: str) -> Section:
     return Section(raw)  # ValueError если мусор (от нас не ожидается)
 
 
-async def main():
+# ---- HTTP сервер для Render ----
+async def handle_root(request: web.Request) -> web.Response:
+    return web.Response(text="Sports Bot OK\n")
+
+
+async def start_web_app() -> None:
+    app = web.Application()
+    app.add_routes([web.get("/", handle_root)])
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, host="0.0.0.0", port=PORT)
+    await site.start()
+    print(f"Web server listening on port {PORT}")
+    # держим задачу живой
+    while True:
+        await asyncio.sleep(3600)
+
+
+# ---- Бот логика ----
+async def run_bot() -> None:
     bot = Bot(BOT_TOKEN)
     dp = Dispatcher()
     alfa = AlfaCRMClient(ALFA_EMAIL, ALFA_API_KEY)
 
-    # Простое in-memory состояние; при росте можно заменить на FSM/хранилище
     menu_msg_id_by_user: Dict[int, int] = {}
-    waiting_phone_section_by_user: Dict[int, Section] = {}  # uid -> section
+    waiting_phone_section_by_user: Dict[int, Section] = {}
 
     @dp.callback_query(F.data.startswith("sw:"))
     async def swimming_placeholders(cq: CallbackQuery):
-        # Заглушки под будущие фичи
         await cq.answer()
         await cq.message.answer(
             "Этот раздел скоро заработает. Пока можете написать координатору по кнопке выше."
@@ -415,7 +430,6 @@ async def main():
 
         section = waiting_phone_section_by_user.get(uid)
         if section is None:
-            # пользователь пишет что-то вне сценария — возвращаем к root-меню
             await ensure_menu_message(
                 m,
                 menu_msg_id_by_user,
@@ -478,7 +492,6 @@ async def main():
                 markup=kb_section_inline(section),
             )
         except Exception:
-            # здесь в реальном проекте лучше залогировать traceback
             await ensure_menu_message(
                 m,
                 menu_msg_id_by_user,
@@ -489,7 +502,19 @@ async def main():
                 markup=kb_section_inline(section),
             )
 
+    print("Starting Telegram bot polling...")
     await dp.start_polling(bot)
+
+
+async def main():
+    """
+    Запускает параллельно:
+    - Telegram бот (polling)
+    - HTTP сервер для Render (открытый порт)
+    """
+    bot_task = asyncio.create_task(run_bot())
+    web_task = asyncio.create_task(start_web_app())
+    await asyncio.gather(bot_task, web_task)
 
 
 if __name__ == "__main__":
