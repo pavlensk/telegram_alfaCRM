@@ -15,7 +15,6 @@ from aiogram.types import (
     InlineKeyboardMarkup,
     InlineKeyboardButton,
     CallbackQuery,
-    Emoji,
 )
 from aiogram.filters import CommandStart
 from dotenv import load_dotenv
@@ -218,19 +217,19 @@ def kb_root_inline() -> InlineKeyboardMarkup:
         inline_keyboard=[
             [
                 InlineKeyboardButton(
-                    text=f"{Emoji(custom_emoji_id=SWIMMING_CUSTOM_EMOJI_ID)} SWIMMING",
+                    text=f'<tg-emoji emoji-id="{SWIMMING_CUSTOM_EMOJI_ID}"></tg-emoji> Плавание',
                     callback_data="nav:section:swimming",
                 )
             ],
             [
                 InlineKeyboardButton(
-                    text=f"{Emoji(custom_emoji_id=RUNNING_CUSTOM_EMOJI_ID)} RUNNING",
+                    text=f'<tg-emoji emoji-id="{RUNNING_CUSTOM_EMOJI_ID}"></tg-emoji> Бег',
                     callback_data="nav:section:running",
                 )
             ],
             [
                 InlineKeyboardButton(
-                    text=f"{Emoji(custom_emoji_id=TRIATHLON_CUSTOM_EMOJI_ID)} TRIATHLON",
+                    text=f'<tg-emoji emoji-id="{TRIATHLON_CUSTOM_EMOJI_ID}"></tg-emoji> Триатлон',
                     callback_data="nav:section:triathlon",
                 )
             ],
