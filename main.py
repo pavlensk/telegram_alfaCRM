@@ -76,6 +76,23 @@ HELLO_BY_SECTION: Dict[Section, str] = {
     Section.TRIATHLON: "💜 Привет! Это бот направления Триатлон.",
 }
 
+SW_TAKE_TEXT = (
+    "Что взять с собой в бассейн:\n"
+    "• купальник/плавки для купания\n"
+    "• очки для плавания\n"
+    "• шапочка\n"
+    "• сланцы\n"
+    "• полотенце\n"
+    "• принадлежности для душа\n"
+    "• справка"
+)
+
+SW_CERT_TEXT = (
+    "Где получить справку?\n\n"
+    "• В бассейне перед тренировкой — 70 ₽\n"
+    "• В вашей поликлинике у терапевта — бесплатно\n"
+    "• В медучреждениях, специализирующихся на справках — от 500 ₽"
+)
 
 def normalize_ru_phone_to_plus7(text: str) -> Optional[str]:
     """
@@ -369,12 +386,25 @@ async def run_bot() -> None:
     menu_msg_id_by_user: Dict[int, int] = {}
     waiting_phone_section_by_user: Dict[int, Section] = {}
 
-    @dp.callback_query(F.data.startswith("sw:"))
-    async def swimming_placeholders(cq: CallbackQuery):
+    @dp.callback_query(F.data == "sw:level")
+    async def sw_level(cq: CallbackQuery):
         await cq.answer()
-        await cq.message.answer(
-            "Этот раздел скоро заработает. Пока можете написать координатору по кнопке выше."
-        )
+        await cq.message.answer("Определение уровня скоро появится!")
+
+    @dp.callback_query(F.data == "sw:cert")
+    async def sw_cert(cq: CallbackQuery):
+        await cq.answer()
+        await cq.message.answer(SW_CERT_TEXT)
+
+    @dp.callback_query(F.data == "sw:prep")
+    async def sw_prep(cq: CallbackQuery):
+        await cq.answer()
+        await cq.message.answer("Инструкция по подготовке скоро появится!")
+
+    @dp.callback_query(F.data == "sw:take")
+    async def sw_take(cq: CallbackQuery):
+        await cq.answer()
+        await cq.message.answer(SW_TAKE_TEXT)
 
     @dp.message(CommandStart())
     async def start(m: Message):
