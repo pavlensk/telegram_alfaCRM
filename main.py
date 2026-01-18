@@ -77,7 +77,7 @@ HELLO_BY_SECTION: Dict[Section, str] = {
 }
 
 SW_TAKE_TEXT = (
-    "**Что взять с собой в бассейн:**\n"
+    "<b>Что взять с собой в бассейн:</b>\n"
     "• купальник/плавки для купания\n"
     "• очки для плавания\n"
     "• шапочка\n"
@@ -88,10 +88,10 @@ SW_TAKE_TEXT = (
 )
 
 SW_CERT_TEXT = (
-    "**Где получить справку?**\n\n"
-    "• В бассейне перед тренировкой — **70 ₽**\n"
-    "• В вашей поликлинике у терапевта — **бесплатно**\n"
-    "• В медучреждениях, специализирующихся на справках — **от 500 ₽**"
+    "<b>Где получить справку?</b>\n\n"
+    "• В бассейне перед тренировкой — <b>70 ₽</b>\n"
+    "• В вашей поликлинике у терапевта — <b>бесплатно</b>\n"
+    "• В медучреждениях, специализирующихся на справках — <b>от 500 ₽</b>"
 )
 
 def normalize_ru_phone_to_plus7(text: str) -> Optional[str]:
@@ -396,7 +396,7 @@ async def run_bot() -> None:
         await cq.answer()
         await cq.message.answer(
             SW_CERT_TEXT,
-            parse_mode="MarkdownV2"
+            parse_mode="HTML"
         )
 
     @dp.callback_query(F.data == "sw:prep")
@@ -409,7 +409,7 @@ async def run_bot() -> None:
         await cq.answer()
         await cq.message.answer(
             SW_TAKE_TEXT,
-            parse_mode="MarkdownV2"
+            parse_mode="HTML"
         )
 
     @dp.message(CommandStart())
