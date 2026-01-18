@@ -40,6 +40,9 @@ if not ALFA_EMAIL or not ALFA_API_KEY:
 
 LOGIN_URL = f"{ALFA_BASE}/v2api/auth/login"
 CUSTOMER_INDEX_URL = f"{ALFA_BASE}/v2api/3/customer/index"
+SWIMMING_BASE_URL = (os.getenv("SWIMMING_BASE_URL") or "").strip()
+if not SWIMMING_BASE_URL:
+    raise RuntimeError("SWIMMING_BASE_URL is not set")
 
 # ---- UI labels ----
 BTN_SWIMMING = "💙️ SWIMMING"
@@ -143,6 +146,13 @@ LEVEL_RESULTS = {
         "Для тех, кто готов к заплывам любой сложности и триатлонным гонкам. "
         "Уверенно выплываете 1000м из 22 минут. Высокий уровень подготовки! 🏆"
     ),
+}
+
+LEVEL_PATHS = {
+    (0, 2): "/level0",      # Level 0
+    (3, 6): "/level1new",   # Level 1
+    (7, 9): "/level2",      # Level 2
+    (10, 15): "/masters",   # Masters
 }
 
 PERSONAL_TRAINING_TEXT = (
@@ -494,9 +504,12 @@ async def run_bot() -> None:
         else:
             total_score = quiz_state[uid]["score"]
             level_title, level_desc = "🌊 Level 0", "Неизвестный уровень"
+            level_url = SWIMMING_BASE_URL
             for (min_s, max_s), (title, desc) in LEVEL_RESULTS.items():
                 if min_s <= total_score <= max_s:
                     level_title, level_desc = title, desc
+                    level_path = LEVEL_PATHS[(min_s, max_s)]
+                    level_url = f"{SWIMMING_BASE_URL}{level_path}"
                     break
             result_text = (
                 f"<b>Результат вашего теста:</b>\n\n"
@@ -505,7 +518,20 @@ async def run_bot() -> None:
                 f"<i>Баллы: {total_score}/12</i>\n\n"
                 f"<b>Готовы начать?</b> Напишите координатору! ➤"
             )
-            await cq.message.answer(result_text, parse_mode="HTML")
+
+            # Кнопки действий
+            hello = HELLO_BY_SECTION[Section.SWIMMING]
+            coordinator_url = coordinator_link(f"{hello} Интересует {level_title}")
+            
+            buttons = [
+                [InlineKeyboardButton(text="📖 Подробнее о программе", url=level_url)],
+                [InlineKeyboardButton(text="💬 Написать координатору", url=coordinator_url)],
+            ]
+            markup = InlineKeyboardMarkup(inline_keyboard=buttons)
+            
+            await cq.message.answer(result_text, reply_markup=markup, parse_mode="HTML")
+            
+            # Очистим состояние
             quiz_state.pop(uid, None)
 
     # ---- Swimming section handlers ----
