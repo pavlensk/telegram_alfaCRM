@@ -373,6 +373,36 @@ def get_question_keyboard(q_data: Dict[str, Any]) -> InlineKeyboardMarkup:
         ]
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
+def get_question_keyboard_adaptive(q_data: Dict[str, Any], uid: int = None, quiz_state: Dict = None) -> InlineKeyboardMarkup:
+    """Клавиатура для вопроса квиза с адаптивной логикой."""
+    if q_data["question"].startswith("1️⃣"):
+        buttons = [
+            [InlineKeyboardButton(text="👥 Групповые занятия", callback_data="quiz:format:group")],
+            [InlineKeyboardButton(text="👤 Персональные тренировки", callback_data="quiz:format:personal")],
+        ]
+    elif q_data["question"].startswith("5️⃣") and uid and quiz_state and uid in quiz_state:
+        # Вопрос о цели - показываем только нужные варианты
+        score = quiz_state[uid]["score"]
+        buttons = []
+        
+        # Показываем вариант "a" только если score <= 2 (Level 0)
+        if score <= 2:
+            buttons.append(
+                [InlineKeyboardButton(text=f"А) {q_data['answers']['a'][0]}", callback_data="quiz:answer:a")]
+            )
+        
+        buttons.extend([
+            [InlineKeyboardButton(text=f"Б) {q_data['answers']['b'][0]}", callback_data="quiz:answer:b")],
+            [InlineKeyboardButton(text=f"В) {q_data['answers']['c'][0]}", callback_data="quiz:answer:c")],
+        ])
+    else:
+        buttons = [
+            [InlineKeyboardButton(text=f"А) {q_data['answers']['a'][0]}", callback_data="quiz:answer:a")],
+            [InlineKeyboardButton(text=f"Б) {q_data['answers']['b'][0]}", callback_data="quiz:answer:b")],
+            [InlineKeyboardButton(text=f"В) {q_data['answers']['c'][0]}", callback_data="quiz:answer:c")],
+        ]
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
+
 # ---- Menu management ----
 async def ensure_menu_message(
     m: Message,
@@ -457,48 +487,6 @@ async def run_bot(bot: Bot) -> None:
     waiting_phone_section_by_user: Dict[int, Section] = {}
     quiz_state: Dict[int, Dict[str, Any]] = {}
 
-    # ---- Swimming level quiz handlers ----
-    @dp.callback_query(F.data == "sw:level")
-    async def sw_level_start(cq: CallbackQuery):
-        uid = cq.from_user.id
-        await cq.answer()
-        quiz_state[uid] = {
-            "question_idx": 0, 
-            "score": 0, 
-            "format": None,
-            "answers": []
-        }
-        q_data = SWIMMING_LEVEL_QUESTIONS[0]
-        await cq.message.answer(
-            q_data["question"],
-            reply_markup=get_question_keyboard(q_data)
-        )
-
-    @dp.callback_query(F.data.startswith("quiz:format:"))
-    async def quiz_format_choice(cq: CallbackQuery):
-        uid = cq.from_user.id
-        if uid not in quiz_state:
-            await cq.answer("Квиз не начинался. Нажми 'Узнать свой уровень'")
-            return
-        format_choice = cq.data.split(":")[-1]
-        quiz_state[uid]["format"] = format_choice
-        await cq.answer()
-        if format_choice == "personal":
-            hello = HELLO_BY_SECTION[Section.SWIMMING]
-            coordinator_url = coordinator_link(f"{hello} Интересуют персональные тренировки")
-            
-            buttons = [
-                [InlineKeyboardButton(text="💬 Написать координатору", url=coordinator_url)],
-            ]
-            markup = InlineKeyboardMarkup(inline_keyboard=buttons)
-            
-            await cq.message.answer(PERSONAL_TRAINING_TEXT, reply_markup=markup, parse_mode="HTML")
-            quiz_state.pop(uid, None)
-            return
-        quiz_state[uid]["question_idx"] += 1
-        next_q = SWIMMING_LEVEL_QUESTIONS[quiz_state[uid]["question_idx"]]
-        await cq.message.answer(next_q["question"], reply_markup=get_question_keyboard(next_q))
-
     # ---- Адаптивная логика вопросов
     def adaptive_next_question(uid: int, current_q_idx: int, current_answer: str) -> int:
         """Возвращает индекс следующего вопроса или len() для завершения."""
@@ -524,6 +512,48 @@ async def run_bot(bot: Bot) -> None:
         # Обычный переход
         return current_q_idx + 1
 
+    # ---- Swimming level quiz handlers ----
+    @dp.callback_query(F.data == "sw:level")
+    async def sw_level_start(cq: CallbackQuery):
+        uid = cq.from_user.id
+        await cq.answer()
+        quiz_state[uid] = {
+            "question_idx": 0, 
+            "score": 0, 
+            "format": None,
+            "answers": []
+        }
+        q_data = SWIMMING_LEVEL_QUESTIONS[0]
+        await cq.message.answer(
+            q_data["question"],
+            reply_markup=get_question_keyboard_adaptive(q_data, uid, quiz_state)
+        )
+
+    @dp.callback_query(F.data.startswith("quiz:format:"))
+    async def quiz_format_choice(cq: CallbackQuery):
+        uid = cq.from_user.id
+        if uid not in quiz_state:
+            await cq.answer("Квиз не начинался. Нажми 'Узнать свой уровень'")
+            return
+        format_choice = cq.data.split(":")[-1]
+        quiz_state[uid]["format"] = format_choice
+        await cq.answer()
+        if format_choice == "personal":
+            hello = HELLO_BY_SECTION[Section.SWIMMING]
+            coordinator_url = coordinator_link(f"{hello} Интересуют персональные тренировки")
+            
+            buttons = [
+                [InlineKeyboardButton(text="💬 Написать координатору", url=coordinator_url)],
+            ]
+            markup = InlineKeyboardMarkup(inline_keyboard=buttons)
+            
+            await cq.message.answer(PERSONAL_TRAINING_TEXT, reply_markup=markup, parse_mode="HTML")
+            quiz_state.pop(uid, None)
+            return
+        quiz_state[uid]["question_idx"] += 1
+        next_q = SWIMMING_LEVEL_QUESTIONS[quiz_state[uid]["question_idx"]]
+        await cq.message.answer(next_q["question"], reply_markup=get_question_keyboard_adaptive(next_q, uid, quiz_state))
+
     @dp.callback_query(F.data.startswith("quiz:answer:"))
     async def quiz_answer(cq: CallbackQuery):
         uid = cq.from_user.id
@@ -547,7 +577,7 @@ async def run_bot(bot: Bot) -> None:
         
         if next_idx < len(SWIMMING_LEVEL_QUESTIONS):
             next_q = SWIMMING_LEVEL_QUESTIONS[next_idx]
-            await cq.message.answer(next_q["question"], reply_markup=get_question_keyboard(next_q))
+            await cq.message.answer(next_q["question"], reply_markup=get_question_keyboard_adaptive(next_q, uid, quiz_state))
         else:
             # Результат
             total_score = quiz_state[uid]["score"]
