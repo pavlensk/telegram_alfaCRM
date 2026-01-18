@@ -21,48 +21,43 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# ---- Environment variables ----
 BOT_TOKEN = (os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
 ALFA_EMAIL = (os.getenv("ALFA_EMAIL") or "").strip()
 ALFA_API_KEY = (os.getenv("ALFA_API_KEY") or "").strip()
-
 COORDINATOR_USERNAME = (os.getenv("COORDINATOR_USERNAME") or "").strip()
+ALFA_BASE = (os.getenv("ALFA_BASE") or "").strip().rstrip("/")
+PORT = int(os.getenv("PORT", "8000"))
+
 if not COORDINATOR_USERNAME:
     raise RuntimeError("COORDINATOR_USERNAME is not set")
-
-ALFA_BASE = (os.getenv("ALFA_BASE") or "").strip().rstrip("/")
 if not ALFA_BASE:
     raise RuntimeError("ALFA_BASE is not set")
-
-LOGIN_URL = f"{ALFA_BASE}/v2api/auth/login"
-CUSTOMER_INDEX_URL = f"{ALFA_BASE}/v2api/3/customer/index"
-
 if not BOT_TOKEN:
     raise RuntimeError("TELEGRAM_BOT_TOKEN is not set")
 if not ALFA_EMAIL or not ALFA_API_KEY:
     raise RuntimeError("ALFA_EMAIL / ALFA_API_KEY is not set")
 
-PORT = int(os.getenv("PORT", "8000"))  # для Render
+LOGIN_URL = f"{ALFA_BASE}/v2api/auth/login"
+CUSTOMER_INDEX_URL = f"{ALFA_BASE}/v2api/3/customer/index"
 
 # ---- UI labels ----
 BTN_SWIMMING = "💙️ SWIMMING"
 BTN_RUNNING = "💚 RUNNING"
 BTN_TRIATHLON = "💜️ TRIATHLON"
 BTN_BACK = "Назад"
-
 BTN_WRITE_COORDINATOR = "Написать координатору"
 BTN_LESSON_REMAINDER = "Остаток занятий"
-
 BTN_SW_LEVEL = "Узнать свой уровень"
 BTN_SW_CERT = "Где получить справку для бассейна"
 BTN_SW_PREP = "Как подготовиться к тренировке"
 BTN_SW_TAKE = "Что взять с собой в бассейн"
 
-
+# ---- Section enum ----
 class Section(str, Enum):
     SWIMMING = "swimming"
     RUNNING = "running"
     TRIATHLON = "triathlon"
-
 
 SECTION_TITLES: Dict[Section, str] = {
     Section.SWIMMING: "Плавание",
@@ -75,6 +70,89 @@ HELLO_BY_SECTION: Dict[Section, str] = {
     Section.RUNNING: "💚 Привет! Вопрос по направлению Бег.",
     Section.TRIATHLON: "💜 Привет! Вопрос по направлению Триатлон.",
 }
+
+# ---- Swimming level quiz questions ----
+SWIMMING_LEVEL_QUESTIONS = [
+    {
+        "question": "1️⃣ Какой формат занятий вас интересует?",
+        "answers": {
+            "group": ("Групповые занятия", "group"),
+            "personal": ("Персональные тренировки", "personal"),
+        }
+    },
+    {
+        "question": "2️⃣ Какой у вас опыт плавания?",
+        "answers": {
+            "a": ("Никогда не плавал / боюсь воды", 0),
+            "b": ("Плавал, но без тренера", 1),
+            "c": ("Занимался с тренером раньше", 2),
+        }
+    },
+    {
+        "question": "3️⃣ На какое расстояние вы можете проплыть кролем без остановки?",
+        "answers": {
+            "a": ("Не могу / меньше 50 м", 0),
+            "b": ("50–300 м", 1),
+            "c": ("Более 300 м", 2),
+        }
+    },
+    {
+        "question": "4️⃣ Знаете ли вы технику плавания кролем?",
+        "answers": {
+            "a": ("Нет / не знаю техники", 0),
+            "b": ("Частично знаю, работаю над ошибками", 1),
+            "c": ("Хорошо владею техникой", 2),
+        }
+    },
+    {
+        "question": "5️⃣ Какова ваша цель?",
+        "answers": {
+            "a": ("Побороть страхи, освоить воду", 0),
+            "b": ("Научиться плавать красиво и технично", 1),
+            "c": ("Подготовка к заплывам / триатлону", 2),
+        }
+    },
+    {
+        "question": "6️⃣ Как часто вы тренируетесь?",
+        "answers": {
+            "a": ("Редко или не тренируюсь", 0),
+            "b": ("1–2 раза в неделю", 1),
+            "c": ("3+ раза в неделю / серьёзно занимаюсь", 2),
+        }
+    },
+]
+
+LEVEL_RESULTS = {
+    (0, 2): (
+        "🌊 <b>Level 0 — Школа плавания для начинающих</b>",
+        "Для тех, кто никогда не плавал, боится бассейнов и открытых водоемов. "
+        "Здесь вы победите свои страхи и сделаете первые шаги в мире плавания! 💪"
+    ),
+    (3, 6): (
+        "🏊 <b>Level 1 — Школа плавания с нуля</b>",
+        "Для тех, кто хочет научиться красиво и технично плавать. "
+        "Мы научим вас правильной технике кроля и основам безопасности. ✨"
+    ),
+    (7, 9): (
+        "🎯 <b>Level 2 — Совершенствование техники</b>",
+        "Для тех, кто уже прошел Level 1 или занимался раньше и может проплыть 300м кролем. "
+        "Совершенствуем технику, работаем над скоростью и выносливостью. 🚀"
+    ),
+    (10, 15): (
+        "⭐ <b>Masters — Подготовка к заплывам и триатлону</b>",
+        "Для тех, кто готов к заплывам любой сложности и триатлонным гонкам. "
+        "Уверенно выплываете 1000м из 22 минут. Высокий уровень подготовки! 🏆"
+    ),
+}
+
+PERSONAL_TRAINING_TEXT = (
+    "<b>Персональные тренировки</b>\n\n"
+    "Персональные тренировки подойдут вам, если:\n"
+    "• Вы не можете заниматься в группе\n"
+    "• В вашем городе нет филиала I Love Swimming\n"
+    "• Вам нужен индивидуальный подход\n\n"
+    "Хотите записаться? Напишите координатору ➤"
+)
 
 SW_TAKE_TEXT = (
     "<b>Что взять с собой в бассейн:</b>\n"
@@ -94,24 +172,28 @@ SW_CERT_TEXT = (
     "• В медучреждениях, специализирующихся на справках — <b>от 500 ₽</b>"
 )
 
+# ---- Utility functions ----
 def normalize_ru_phone_to_plus7(text: str) -> Optional[str]:
-    """
-    Нормализует российский номер в формат 7XXXXXXXXXX (без плюса).
-    Принимает варианты: +7XXXXXXXXXX, 8XXXXXXXXXX, 9XXXXXXXXX.
-    """
+    """Нормализует российский номер в формат 7XXXXXXXXXX (без плюса)."""
     digits = re.sub(r"\D", "", text or "")
-
     if len(digits) == 11 and digits.startswith("8"):
         digits = "7" + digits[1:]
     if len(digits) == 10 and digits.startswith("9"):
         digits = "7" + digits
-
     if len(digits) == 11 and digits.startswith("7"):
         return digits
-
     return None
 
+def coordinator_link(start_text: str) -> str:
+    return (
+        f"https://t.me/{COORDINATOR_USERNAME}"
+        f"?text={urllib.parse.quote(start_text)}"
+    )
 
+def parse_section(raw: str) -> Section:
+    return Section(raw)
+
+# ---- AlfaCRM client ----
 class AlfaCRMClient:
     def __init__(self, email: str, apikey: str):
         self.email = email
@@ -123,16 +205,13 @@ class AlfaCRMClient:
     async def login(self, client: httpx.AsyncClient) -> str:
         payload = {"email": self.email, "api_key": self.apikey}
         headers = {"Accept": "application/json", "Content-Type": "application/json"}
-
         r = await client.post(LOGIN_URL, json=payload, headers=headers, timeout=20)
         if r.status_code != 200:
             raise RuntimeError(f"Login failed HTTP {r.status_code}: {r.text}")
-
         data = r.json()
         token = data.get("token")
         if not token:
             raise RuntimeError(f"Login response has no token: {data}")
-
         self.token = token
         self.token_ts = time.time()
         return token
@@ -146,7 +225,6 @@ class AlfaCRMClient:
     async def customer_search_by_phone(self, phone_plus7: str) -> Dict[str, Any]:
         async with httpx.AsyncClient() as client:
             token = await self.get_token(client)
-
             headers = {
                 "Accept": "application/json",
                 "Content-Type": "application/json",
@@ -181,7 +259,6 @@ class AlfaCRMClient:
 
             return r.json()
 
-
 def extract_customer_fields(resp: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     items: List[Dict[str, Any]] = resp.get("items") or []
     if not items:
@@ -193,15 +270,7 @@ def extract_customer_fields(resp: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         "paid_lesson_count": c.get("paid_lesson_count"),
     }
 
-
-def coordinator_link(start_text: str) -> str:
-    return (
-        f"https://t.me/{COORDINATOR_USERNAME}"
-        f"?text={urllib.parse.quote(start_text)}"
-    )
-
-
-# ---- Inline keyboards (callback_data carries section) ----
+# ---- Inline keyboards ----
 def kb_root_inline() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
@@ -226,13 +295,10 @@ def kb_root_inline() -> InlineKeyboardMarkup:
         ]
     )
 
-
 def kb_section_inline(section: Section) -> InlineKeyboardMarkup:
     hello = HELLO_BY_SECTION.get(section, "Привет! Напишите координатору.")
     link = coordinator_link(hello)
-
     s = section.value
-
     keyboard = [
         [
             InlineKeyboardButton(
@@ -247,7 +313,6 @@ def kb_section_inline(section: Section) -> InlineKeyboardMarkup:
             )
         ],
     ]
-
     if section == Section.SWIMMING:
         keyboard.extend(
             [
@@ -284,25 +349,29 @@ def kb_section_inline(section: Section) -> InlineKeyboardMarkup:
 
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
+def get_question_keyboard(q_data: Dict[str, Any]) -> InlineKeyboardMarkup:
+    """Клавиатура для вопроса квиза"""
+    if q_data["question"].startswith("1️⃣"):
+        buttons = [
+            [InlineKeyboardButton(text="👥 Групповые занятия", callback_data="quiz:format:group")],
+            [InlineKeyboardButton(text="👤 Персональные тренировки", callback_data="quiz:format:personal")],
+        ]
+    else:
+        buttons = [
+            [InlineKeyboardButton(text=f"А) {q_data['answers']['a'][0]}", callback_data="quiz:answer:a")],
+            [InlineKeyboardButton(text=f"Б) {q_data['answers']['b'][0]}", callback_data="quiz:answer:b")],
+            [InlineKeyboardButton(text=f"В) {q_data['answers']['c'][0]}", callback_data="quiz:answer:c")],
+        ]
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
 
-def title_root() -> str:
-    return "Выберите направление:"
-
-
-def title_section(section: Section) -> str:
-    title = SECTION_TITLES.get(section, section.value)
-    return f"{title}. Выберите действие:"
-
-
+# ---- Menu management ----
 async def ensure_menu_message(
     m: Message,
     menu_msg_id_by_user: Dict[int, int],
     text: str,
     markup: InlineKeyboardMarkup,
 ) -> None:
-    """
-    Гарантирует одно "меню-сообщение": если уже есть — редактируем, иначе создаём.
-    """
+    """Гарантирует одно меню-сообщение: если есть — редактируем, иначе создаём."""
     uid = m.from_user.id
     msg_id = menu_msg_id_by_user.get(uid)
     if msg_id:
@@ -316,10 +385,8 @@ async def ensure_menu_message(
             return
         except Exception:
             pass
-
     sent = await m.answer(text, reply_markup=markup)
     menu_msg_id_by_user[uid] = sent.message_id
-
 
 async def edit_menu_message(
     cq: CallbackQuery,
@@ -327,13 +394,9 @@ async def edit_menu_message(
     text: str,
     markup: InlineKeyboardMarkup,
 ) -> None:
-    """
-    Редактирует меню в callback. Если callback пришёл не от "того" сообщения —
-    редактируем текущее меню, либо текущее сообщение callback.
-    """
+    """Редактирует меню в callback."""
     uid = cq.from_user.id
     await cq.answer()
-
     msg_id = menu_msg_id_by_user.get(uid)
     if msg_id:
         try:
@@ -346,7 +409,6 @@ async def edit_menu_message(
             return
         except Exception:
             pass
-
     try:
         await cq.message.edit_text(text, reply_markup=markup)
         menu_msg_id_by_user[uid] = cq.message.message_id
@@ -354,15 +416,16 @@ async def edit_menu_message(
         sent = await cq.message.answer(text, reply_markup=markup)
         menu_msg_id_by_user[uid] = sent.message_id
 
+def title_root() -> str:
+    return "Выберите направление:"
 
-def parse_section(raw: str) -> Section:
-    return Section(raw)  # ValueError если мусор (от нас не ожидается)
+def title_section(section: Section) -> str:
+    title = SECTION_TITLES.get(section, section.value)
+    return f"{title}. Выберите действие:"
 
-
-# ---- HTTP сервер для Render ----
+# ---- HTTP server for Render ----
 async def handle_root(request: web.Request) -> web.Response:
     return web.Response(text="Sports Bot OK\n")
-
 
 async def start_web_app() -> None:
     app = web.Application()
@@ -372,12 +435,10 @@ async def start_web_app() -> None:
     site = web.TCPSite(runner, host="0.0.0.0", port=PORT)
     await site.start()
     print(f"Web server listening on port {PORT}")
-    # держим задачу живой
     while True:
         await asyncio.sleep(3600)
 
-
-# ---- Бот логика ----
+# ---- Bot handlers ----
 async def run_bot() -> None:
     bot = Bot(BOT_TOKEN)
     dp = Dispatcher()
@@ -385,12 +446,69 @@ async def run_bot() -> None:
 
     menu_msg_id_by_user: Dict[int, int] = {}
     waiting_phone_section_by_user: Dict[int, Section] = {}
+    quiz_state: Dict[int, Dict[str, Any]] = {}
 
+    # ---- Swimming level quiz handlers ----
     @dp.callback_query(F.data == "sw:level")
-    async def sw_level(cq: CallbackQuery):
+    async def sw_level_start(cq: CallbackQuery):
+        uid = cq.from_user.id
         await cq.answer()
-        await cq.message.answer("Определение уровня скоро появится!")
+        quiz_state[uid] = {"question_idx": 0, "score": 0, "format": None}
+        q_data = SWIMMING_LEVEL_QUESTIONS[0]
+        await cq.message.answer(q_data["question"], reply_markup=get_question_keyboard(q_data))
 
+    @dp.callback_query(F.data.startswith("quiz:format:"))
+    async def quiz_format_choice(cq: CallbackQuery):
+        uid = cq.from_user.id
+        if uid not in quiz_state:
+            await cq.answer("Квиз не начинался. Нажми 'Узнать свой уровень'")
+            return
+        format_choice = cq.data.split(":")[-1]
+        quiz_state[uid]["format"] = format_choice
+        await cq.answer()
+        if format_choice == "personal":
+            await cq.message.answer(PERSONAL_TRAINING_TEXT, parse_mode="HTML")
+            quiz_state.pop(uid, None)
+            return
+        quiz_state[uid]["question_idx"] += 1
+        next_q = SWIMMING_LEVEL_QUESTIONS[quiz_state[uid]["question_idx"]]
+        await cq.message.answer(next_q["question"], reply_markup=get_question_keyboard(next_q))
+
+    @dp.callback_query(F.data.startswith("quiz:answer:"))
+    async def quiz_answer(cq: CallbackQuery):
+        uid = cq.from_user.id
+        if uid not in quiz_state:
+            await cq.answer("Квиз не начинался. Нажми 'Узнать свой уровень'")
+            return
+        answer_key = cq.data.split(":")[-1]
+        q_idx = quiz_state[uid]["question_idx"]
+        q_data = SWIMMING_LEVEL_QUESTIONS[q_idx]
+        score = q_data["answers"][answer_key][1]
+        quiz_state[uid]["score"] += score
+        await cq.answer()
+        quiz_state[uid]["question_idx"] += 1
+        next_idx = quiz_state[uid]["question_idx"]
+        if next_idx < len(SWIMMING_LEVEL_QUESTIONS):
+            next_q = SWIMMING_LEVEL_QUESTIONS[next_idx]
+            await cq.message.answer(next_q["question"], reply_markup=get_question_keyboard(next_q))
+        else:
+            total_score = quiz_state[uid]["score"]
+            level_title, level_desc = "🌊 Level 0", "Неизвестный уровень"
+            for (min_s, max_s), (title, desc) in LEVEL_RESULTS.items():
+                if min_s <= total_score <= max_s:
+                    level_title, level_desc = title, desc
+                    break
+            result_text = (
+                f"<b>Результат вашего теста:</b>\n\n"
+                f"{level_title}\n\n"
+                f"{level_desc}\n\n"
+                f"<i>Баллы: {total_score}/12</i>\n\n"
+                f"<b>Готовы начать?</b> Напишите координатору! ➤"
+            )
+            await cq.message.answer(result_text, parse_mode="HTML")
+            quiz_state.pop(uid, None)
+
+    # ---- Swimming section handlers ----
     @dp.callback_query(F.data == "sw:cert")
     async def sw_cert(cq: CallbackQuery):
         await cq.answer()
@@ -412,6 +530,7 @@ async def run_bot() -> None:
             parse_mode="HTML"
         )
 
+    # ---- Main navigation handlers ----
     @dp.message(CommandStart())
     async def start(m: Message):
         waiting_phone_section_by_user.pop(m.from_user.id, None)
@@ -448,7 +567,6 @@ async def run_bot() -> None:
     async def act_lesson_remainder(cq: CallbackQuery):
         raw = (cq.data or "").split(":")[-1]
         section = parse_section(raw)
-
         waiting_phone_section_by_user[cq.from_user.id] = section
         await edit_menu_message(
             cq,
@@ -463,7 +581,6 @@ async def run_bot() -> None:
     @dp.message(F.text)
     async def handle_text(m: Message):
         uid = m.from_user.id
-
         section = waiting_phone_section_by_user.get(uid)
         if section is None:
             await ensure_menu_message(
@@ -473,7 +590,6 @@ async def run_bot() -> None:
                 kb_root_inline(),
             )
             return
-
         phone = normalize_ru_phone_to_plus7(m.text or "")
         if not phone:
             await m.answer(
@@ -481,7 +597,6 @@ async def run_bot() -> None:
                 "Примеры: +7 912 345-67-89, 89123456789, 79123456789."
             )
             return
-
         waiting_phone_section_by_user.pop(uid, None)
 
         await ensure_menu_message(
@@ -505,18 +620,9 @@ async def run_bot() -> None:
                     markup=kb_section_inline(section),
                 )
                 return
-
             legal_name = customer.get("legal_name") or "—"
-            balance = customer.get("balance")
-            paid_lesson_count = customer.get("paid_lesson_count")
-
-            balance_txt = str(balance) if balance is not None else "—"
-            paid_txt = (
-                str(paid_lesson_count)
-                if paid_lesson_count is not None
-                else "—"
-            )
-
+            balance_txt = str(customer.get("balance")) if customer.get("balance") is not None else "—"
+            paid_txt = str(customer.get("paid_lesson_count")) if customer.get("paid_lesson_count") is not None else "—"
             await ensure_menu_message(
                 m,
                 menu_msg_id_by_user,
@@ -541,7 +647,6 @@ async def run_bot() -> None:
     print("Starting Telegram bot polling...")
     await dp.start_polling(bot)
 
-
 async def main():
     """
     Запускает параллельно:
@@ -551,7 +656,6 @@ async def main():
     bot_task = asyncio.create_task(run_bot())
     web_task = asyncio.create_task(start_web_app())
     await asyncio.gather(bot_task, web_task)
-
 
 if __name__ == "__main__":
     asyncio.run(main())
