@@ -560,7 +560,7 @@ async def run_bot(bot: Bot) -> None:
             m,
             menu_msg_id_by_user,
             title_root(),
-            kb_root_inline(),
+            kb_root_inline(UI_LABELS),
         )
 
     @dp.callback_query(F.data == "nav:root")
@@ -570,7 +570,7 @@ async def run_bot(bot: Bot) -> None:
             cq,
             menu_msg_id_by_user,
             title_root(),
-            kb_root_inline(),
+            kb_root_inline(UI_LABELS),
         )
 
     @dp.callback_query(F.data.startswith("nav:section:"))
@@ -605,7 +605,7 @@ async def run_bot(bot: Bot) -> None:
                 m,
                 menu_msg_id_by_user,
                 title_root(),
-                kb_root_inline(),
+                kb_root_inline(UI_LABELS),
             )
             return
         
