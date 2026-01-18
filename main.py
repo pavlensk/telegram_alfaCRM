@@ -43,11 +43,10 @@ if not ALFA_EMAIL or not ALFA_API_KEY:
 
 PORT = int(os.getenv("PORT", "8000"))  # для Render
 
-SWIMMING_CUSTOM_EMOJI_ID = "5308052520944287065"
-RUNNING_CUSTOM_EMOJI_ID = "5307732554470669753"
-TRIATHLON_CUSTOM_EMOJI_ID = "5307984926748982814"
-
 # ---- UI labels ----
+BTN_SWIMMING = "🏊‍♂️ Плавание"
+BTN_RUNNING = "🏃‍♂️ Бег"
+BTN_TRIATHLON = "🏊‍♂️🚴‍♂️🏃‍♂️ Триатлон"
 BTN_BACK = "Назад"
 
 BTN_WRITE_COORDINATOR = "Написать координатору"
@@ -72,18 +71,9 @@ SECTION_TITLES: Dict[Section, str] = {
 }
 
 HELLO_BY_SECTION: Dict[Section, str] = {
-    Section.SWIMMING: (
-        f'<tg-emoji emoji-id="{SWIMMING_CUSTOM_EMOJI_ID}"></tg-emoji> '
-        'Привет! Вопрос по направлению Плавание.'
-    ),
-    Section.RUNNING: (
-        f'<tg-emoji emoji-id="{RUNNING_CUSTOM_EMOJI_ID}"></tg-emoji> '
-        'Привет! Вопрос по направлению Бег.'
-    ),
-    Section.TRIATHLON: (
-        f'<tg-emoji emoji-id="{TRIATHLON_CUSTOM_EMOJI_ID}"></tg-emoji> '
-        'Привет! Вопрос по направлению Триатлон.'
-    ),
+    Section.SWIMMING: "💙 Привет! Вопрос по направлению Плавание.",
+    Section.RUNNING: "💚 Привет! Вопрос по направлению Бег.",
+    Section.TRIATHLON: "💜 Привет! Вопрос по направлению Триатлон.",
 }
 
 SW_TAKE_TEXT = (
@@ -217,19 +207,19 @@ def kb_root_inline() -> InlineKeyboardMarkup:
         inline_keyboard=[
             [
                 InlineKeyboardButton(
-                    text=f'<tg-emoji emoji-id="{SWIMMING_CUSTOM_EMOJI_ID}"></tg-emoji> Плавание',
+                    text=BTN_SWIMMING,
                     callback_data="nav:section:swimming",
                 )
             ],
             [
                 InlineKeyboardButton(
-                    text=f'<tg-emoji emoji-id="{RUNNING_CUSTOM_EMOJI_ID}"></tg-emoji> Бег',
+                    text=BTN_RUNNING,
                     callback_data="nav:section:running",
                 )
             ],
             [
                 InlineKeyboardButton(
-                    text=f'<tg-emoji emoji-id="{TRIATHLON_CUSTOM_EMOJI_ID}"></tg-emoji> Триатлон',
+                    text=BTN_TRIATHLON,
                     callback_data="nav:section:triathlon",
                 )
             ],
