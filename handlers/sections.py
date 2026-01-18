@@ -14,41 +14,17 @@ from core import menu_manager, keyboards
 logger = logging.getLogger(__name__)
 
 
-def setup_sections_handlers(
-    dp: Dispatcher,
-    menu_msg_id_by_user: Dict[int, int],
-):
-    """Регистрирует хендлеры информационных разделов."""
+def setup_sections_handlers(dp: Dispatcher, menu_msg_id_by_user: Dict[int, int]):
+    INFO_CALLBACKS = {"sw:cert", "sw:prep", "sw:take"}
 
-    @dp.callback_query(F.data == "sw:cert")
-    async def sw_cert(cq: CallbackQuery):
-        """Справка по плаванию."""
+    @dp.callback_query(F.data.in_(INFO_CALLBACKS))
+    async def info_handler(cq: CallbackQuery):
         await cq.answer()
-        await menu_manager.edit_menu_message(
-            cq,
-            menu_msg_id_by_user,
-            config.TEXTS["sw_cert"],
-            keyboards.kb_section_inline(config.Section.SWIMMING),
-        )
+        text_key = f"sw_{cq.data.split(':')[1]}"  # sw_cert, sw_prep, sw_take
+        text = config.TEXTS[text_key]
 
-    @dp.callback_query(F.data == "sw:prep")
-    async def sw_prep(cq: CallbackQuery):
-        """Подготовка к заплыву."""
-        await cq.answer()
         await menu_manager.edit_menu_message(
-            cq,
-            menu_msg_id_by_user,
-            config.TEXTS["sw_prep"],
+            cq, menu_msg_id_by_user, text,
             keyboards.kb_section_inline(config.Section.SWIMMING),
-        )
-
-    @dp.callback_query(F.data == "sw:take")
-    async def sw_take(cq: CallbackQuery):
-        """Что взять в бассейн."""
-        await cq.answer()
-        await menu_manager.edit_menu_message(
-            cq,
-            menu_msg_id_by_user,
-            config.TEXTS["sw_take"],
-            keyboards.kb_section_inline(config.Section.SWIMMING),
+            parse_mode="HTML"
         )

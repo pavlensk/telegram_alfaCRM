@@ -31,6 +31,8 @@ REQUIRED_ENVS = [
     ("ALFA_EMAIL", ALFA_EMAIL),
     ("ALFA_API_KEY", ALFA_API_KEY),
     ("SWIMMING_BASE_URL", SWIMMING_BASE_URL),
+    ("LOGIN_URL", LOGIN_URL),
+    ("CUSTOMER_INDEX_URL", CUSTOMER_INDEX_URL),
 ]
 
 for env_name, value in REQUIRED_ENVS:
@@ -67,3 +69,10 @@ QUIZ_IDX_EXPERIENCE = 1
 QUIZ_IDX_DISTANCE = 2
 QUIZ_IDX_FREESTYLE = 3
 QUIZ_IDX_GOAL = 4
+
+# для обработчиков сообщений
+INFO_SECTIONS = {
+    "sw:cert": "sw_cert",
+    "sw:prep": "sw_prep",
+    "sw:take": "sw_take",
+}
