@@ -10,9 +10,7 @@ from aiogram.types import Message, CallbackQuery
 from aiogram.filters import CommandStart
 
 import config
-import keyboards
-import menu_manager
-import utils
+from core import keyboards, menu_manager, utils
 
 logger = logging.getLogger(__name__)
 
