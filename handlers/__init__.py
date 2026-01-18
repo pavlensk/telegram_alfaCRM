@@ -39,4 +39,4 @@ def setup_all_handlers(
     )
     
     # Регистрируем хендлеры информационных разделов
-    sections.setup_sections_handlers(dp)
+    sections.setup_sections_handlers(dp, menu_msg_id_by_user)
