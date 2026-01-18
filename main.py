@@ -236,28 +236,28 @@ def extract_customer_fields(resp: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     }
 
 # ---- Inline keyboards ----
-def kb_root_inline() -> InlineKeyboardMarkup:
+def kb_root_inline(ui_labels: dict) -> InlineKeyboardMarkup:
     """Главное меню."""
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
                 InlineKeyboardButton(
-                    text=BTN_SWIMMING,
-                    callback_data="nav:section:swimming",
+                    text=ui_labels["btn_swimming"],  # ✅ Правильно!
+                    callback_data="nav:section:swimming"
                 )
             ],
             [
                 InlineKeyboardButton(
-                    text=BTN_RUNNING,
-                    callback_data="nav:section:running",
+                    text=ui_labels["btn_running"],   # ✅ Правильно!
+                    callback_data="nav:section:running"
                 )
             ],
             [
                 InlineKeyboardButton(
-                    text=BTN_TRIATHLON,
-                    callback_data="nav:section:triathlon",
+                    text=ui_labels["btn_triathlon"], # ✅ Правильно!
+                    callback_data="nav:section:triathlon"
                 )
-            ],
+            ]
         ]
     )
 
