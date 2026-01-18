@@ -19,6 +19,12 @@ from aiogram.types import (
 from aiogram.filters import CommandStart
 from dotenv import load_dotenv
 
+import signal
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 load_dotenv()
 
 # ---- Environment variables ----
@@ -28,6 +34,7 @@ ALFA_API_KEY = (os.getenv("ALFA_API_KEY") or "").strip()
 COORDINATOR_USERNAME = (os.getenv("COORDINATOR_USERNAME") or "").strip()
 ALFA_BASE = (os.getenv("ALFA_BASE") or "").strip().rstrip("/")
 PORT = int(os.getenv("PORT", "8000"))
+BOT_STATUS_CHAT_ID = int(os.getenv("BOT_STATUS_CHAT_ID", "0"))
 
 if not COORDINATOR_USERNAME:
     raise RuntimeError("COORDINATOR_USERNAME is not set")
@@ -115,44 +122,36 @@ SWIMMING_LEVEL_QUESTIONS = [
             "c": ("Подготовка к заплывам / триатлону", 2),
         }
     },
-    {
-        "question": "6️⃣ Как часто Вы тренируетесь?",
-        "answers": {
-            "a": ("Редко или не тренируюсь", 0),
-            "b": ("1–2 раза в неделю", 1),
-            "c": ("3+ раза в неделю / серьёзно занимаюсь", 2),
-        }
-    },
 ]
 
 LEVEL_RESULTS = {
     (0, 2): (
-        "🌊 <b>Level 0 — Школа плавания для начинающих</b>",
+        "🌊 Level 0",
         "Для тех, кто никогда не плавал, боится бассейнов и открытых водоемов. "
         "Здесь вы победите свои страхи и сделаете первые шаги в мире плавания! 💪"
     ),
-    (3, 6): (
-        "🏊 <b>Level 1 — Школа плавания с нуля</b>",
+    (3, 4): (
+        "🏊 Level 1",
         "Для тех, кто хочет научиться красиво и технично плавать. "
         "Мы научим вас правильной технике кроля и основам безопасности. ✨"
     ),
-    (7, 9): (
-        "🎯 <b>Level 2 — Совершенствование техники</b>",
+    (5, 6): (
+        "🎯 Level 2",
         "Для тех, кто уже прошел Level 1 или может проплыть 300м кролем. "
         "Совершенствуем технику, работаем над скоростью и выносливостью. 🚀"
     ),
-    (10, 15): (
-        "⭐ <b>Masters — Подготовка к заплывам и триатлону</b>",
+    (7, 8): (
+        "⭐ Masters",
         "Для тех, кто готов к заплывам любой сложности и триатлонным гонкам. "
         "Подойдёт Вам, если Вы уверенно выплываете 1000м из 22 минут. 🏆"
     ),
 }
 
 LEVEL_PATHS = {
-    (0, 2): "/school-level-0",      # Level 0
-    (3, 6): "/level1new",           # Level 1
-    (7, 9): "/level_2",             # Level 2
-    (10, 15): "/masters-a2208b9e-8a66-4f7a-b2db-d9ea6b59965b",   # Masters
+    (0, 2): "/school-level-0",
+    (3, 4): "/level1new",
+    (5, 6): "/level_2",
+    (7, 8): "/masters-a2208b9e-8a66-4f7a-b2db-d9ea6b59965b",
 }
 
 PERSONAL_TRAINING_TEXT = (
@@ -444,13 +443,13 @@ async def start_web_app() -> None:
     await runner.setup()
     site = web.TCPSite(runner, host="0.0.0.0", port=PORT)
     await site.start()
-    print(f"Web server listening on port {PORT}")
+    logger.info(f"Web server listening on port {PORT}")
     while True:
         await asyncio.sleep(3600)
 
 # ---- Bot handlers ----
-async def run_bot() -> None:
-    bot = Bot(BOT_TOKEN)
+async def run_bot(bot: Bot) -> None:
+    """Запускает диспетчер с handlers."""
     dp = Dispatcher()
     alfa = AlfaCRMClient(ALFA_EMAIL, ALFA_API_KEY)
 
@@ -463,9 +462,17 @@ async def run_bot() -> None:
     async def sw_level_start(cq: CallbackQuery):
         uid = cq.from_user.id
         await cq.answer()
-        quiz_state[uid] = {"question_idx": 0, "score": 0, "format": None}
+        quiz_state[uid] = {
+            "question_idx": 0, 
+            "score": 0, 
+            "format": None,
+            "answers": []
+        }
         q_data = SWIMMING_LEVEL_QUESTIONS[0]
-        await cq.message.answer(q_data["question"], reply_markup=get_question_keyboard(q_data))
+        await cq.message.answer(
+            q_data["question"],
+            reply_markup=get_question_keyboard(q_data)
+        )
 
     @dp.callback_query(F.data.startswith("quiz:format:"))
     async def quiz_format_choice(cq: CallbackQuery):
@@ -477,8 +484,6 @@ async def run_bot() -> None:
         quiz_state[uid]["format"] = format_choice
         await cq.answer()
         if format_choice == "personal":
-
-            # Кнопки действий
             hello = HELLO_BY_SECTION[Section.SWIMMING]
             coordinator_url = coordinator_link(f"{hello} Интересуют персональные тренировки")
             
@@ -494,42 +499,76 @@ async def run_bot() -> None:
         next_q = SWIMMING_LEVEL_QUESTIONS[quiz_state[uid]["question_idx"]]
         await cq.message.answer(next_q["question"], reply_markup=get_question_keyboard(next_q))
 
+    # ---- Адаптивная логика вопросов
+    def adaptive_next_question(uid: int, current_q_idx: int, current_answer: str) -> int:
+        """Возвращает индекс следующего вопроса или len() для завершения."""
+        state = quiz_state[uid]
+        answers = state["answers"]
+        
+        if current_q_idx == 1:  # После "опыт плавания" (вопрос 2)
+            if current_answer == "a":  # "Никогда не плавал / боюсь воды"
+                state["score"] += 0
+                answers.append("a")
+                return 3  # → К 4-му вопросу (техника кроля)
+            elif current_answer == "c":  # "Занимался с тренером"
+                state["score"] += 2
+                answers.append("c")
+                return 3  # → К 3-му вопросу (расстояние)
+        
+        elif current_q_idx == 2:  # После "расстояние" (вопрос 3)
+            if current_answer == "a":  # "Меньше 50м"
+                state["score"] += 0
+                answers.append("a")
+                return 4  # → К 5-му вопросу (цель)
+      
+        # Обычный переход
+        return current_q_idx + 1
+
     @dp.callback_query(F.data.startswith("quiz:answer:"))
     async def quiz_answer(cq: CallbackQuery):
         uid = cq.from_user.id
         if uid not in quiz_state:
             await cq.answer("Квиз не начинался. Нажми 'Узнать свой уровень'")
             return
+        
         answer_key = cq.data.split(":")[-1]
         q_idx = quiz_state[uid]["question_idx"]
         q_data = SWIMMING_LEVEL_QUESTIONS[q_idx]
         score = q_data["answers"][answer_key][1]
+        
+        quiz_state[uid]["answers"].append(answer_key)
         quiz_state[uid]["score"] += score
+        
         await cq.answer()
-        quiz_state[uid]["question_idx"] += 1
-        next_idx = quiz_state[uid]["question_idx"]
+        
+        # АДАПТИВНЫЙ ПЕРЕХОД
+        next_idx = adaptive_next_question(uid, q_idx, answer_key)
+        quiz_state[uid]["question_idx"] = next_idx
+        
         if next_idx < len(SWIMMING_LEVEL_QUESTIONS):
             next_q = SWIMMING_LEVEL_QUESTIONS[next_idx]
             await cq.message.answer(next_q["question"], reply_markup=get_question_keyboard(next_q))
         else:
+            # Результат
             total_score = quiz_state[uid]["score"]
             level_title, level_desc = "🌊 Level 0", "Неизвестный уровень"
             level_url = SWIMMING_BASE_URL
+            
             for (min_s, max_s), (title, desc) in LEVEL_RESULTS.items():
                 if min_s <= total_score <= max_s:
                     level_title, level_desc = title, desc
                     level_path = LEVEL_PATHS[(min_s, max_s)]
                     level_url = f"{SWIMMING_BASE_URL}{level_path}"
                     break
+            
             result_text = (
                 f"<b>Результат вашего теста:</b>\n\n"
-                f"{level_title}\n\n"
+                f"<b>{level_title}</b>\n\n"
                 f"{level_desc}\n\n"
-                f"<i>Баллы: {total_score}/12</i>\n\n"
+                f"<i>Баллы: {total_score}/8</i>\n\n"
                 f"<b>Готовы начать?</b> Напишите координатору! ➤"
             )
-
-            # Кнопки действий
+            
             hello = HELLO_BY_SECTION[Section.SWIMMING]
             coordinator_url = coordinator_link(f"{hello} Интересует {level_title}")
             
@@ -540,8 +579,6 @@ async def run_bot() -> None:
             markup = InlineKeyboardMarkup(inline_keyboard=buttons)
             
             await cq.message.answer(result_text, reply_markup=markup, parse_mode="HTML")
-            
-            # Очистим состояние
             quiz_state.pop(uid, None)
 
     # ---- Swimming section handlers ----
@@ -669,7 +706,8 @@ async def run_bot() -> None:
                 ),
                 markup=kb_section_inline(section),
             )
-        except Exception:
+        except Exception as e:
+            logger.error(f"AlfaCRM error: {e}")
             await ensure_menu_message(
                 m,
                 menu_msg_id_by_user,
@@ -680,18 +718,66 @@ async def run_bot() -> None:
                 markup=kb_section_inline(section),
             )
 
-    print("Starting Telegram bot polling...")
+    await notify_bot_ready(bot)
+    logger.info("Starting Telegram bot polling...")
     await dp.start_polling(bot)
 
+async def notify_bot_ready(bot: Bot):
+    """Уведомление о запуске."""
+    if not BOT_STATUS_CHAT_ID:
+        logger.info("BOT_STATUS_CHAT_ID не задан")
+        return
+    try:
+        await bot.send_message(
+            BOT_STATUS_CHAT_ID,
+            f"🤖 <b>Sports Bot запущен!</b>\n\n"
+            f"🕐 <i>{time.strftime('%Y-%m-%d %H:%M:%S')}</i>\n"
+            f"✅ AlfaCRM: OK\n"
+            f"✅ Web: порт {PORT}",
+            parse_mode="HTML"
+        )
+        logger.info("✅ Уведомление о запуске отправлено!")
+    except Exception as e:
+        logger.error(f"Ошибка уведомления о запуске: {e}")
+
+async def notify_bot_stopped(bot: Bot):
+    """Уведомление об остановке."""
+    if not BOT_STATUS_CHAT_ID:
+        return
+    try:
+        await bot.send_message(
+            BOT_STATUS_CHAT_ID,
+            "🛑 <b>Sports Bot остановлен</b>",
+            parse_mode="HTML"
+        )
+        logger.info("✅ Уведомление об остановке отправлено!")
+    except Exception as e:
+        logger.error(f"Ошибка уведомления об остановке: {e}")
+
 async def main():
-    """
-    Запускает параллельно:
-    - Telegram бот (polling)
-    - HTTP сервер для Render (открытый порт)
-    """
-    bot_task = asyncio.create_task(run_bot())
+    """Главная функция: запускает бот и веб-сервер параллельно."""
+    bot = Bot(BOT_TOKEN)
+    
+    bot_task = asyncio.create_task(run_bot(bot))
     web_task = asyncio.create_task(start_web_app())
-    await asyncio.gather(bot_task, web_task)
+    
+    def handle_shutdown():
+        logger.info("Shutdown signal received...")
+        bot_task.cancel()
+        web_task.cancel()
+    
+    loop = asyncio.get_running_loop()
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        loop.add_signal_handler(sig, handle_shutdown)
+    
+    try:
+        await asyncio.gather(bot_task, web_task)
+    except asyncio.CancelledError:
+        logger.info("Tasks cancelled")
+    finally:
+        await notify_bot_stopped(bot)
+        await bot.session.close()
+        logger.info("Bot session closed")
 
 if __name__ == "__main__":
     asyncio.run(main())
