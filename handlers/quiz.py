@@ -9,9 +9,7 @@ from aiogram import Dispatcher, F
 from aiogram.types import CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 
 import config
-import keyboards
-import menu_manager
-import utils
+from core import keyboards, menu_manager, utils
 
 logger = logging.getLogger(__name__)
 
