@@ -44,9 +44,9 @@ if not ALFA_EMAIL or not ALFA_API_KEY:
 PORT = int(os.getenv("PORT", "8000"))  # для Render
 
 # ---- UI labels ----
-BTN_SWIMMING = "🏊‍♂️ Плавание"
-BTN_RUNNING = "🏃‍♂️ Бег"
-BTN_TRIATHLON = "🏊‍♂️🚴‍♂️🏃‍♂️ Триатлон"
+BTN_SWIMMING = "💙️ SWIMMING"
+BTN_RUNNING = "💚 RUNNING"
+BTN_TRIATHLON = "💜️ TRIATHLON"
 BTN_BACK = "Назад"
 
 BTN_WRITE_COORDINATOR = "Написать координатору"
@@ -77,7 +77,7 @@ HELLO_BY_SECTION: Dict[Section, str] = {
 }
 
 SW_TAKE_TEXT = (
-    "Что взять с собой в бассейн:\n"
+    "**Что взять с собой в бассейн:**\n"
     "• купальник/плавки для купания\n"
     "• очки для плавания\n"
     "• шапочка\n"
@@ -88,10 +88,10 @@ SW_TAKE_TEXT = (
 )
 
 SW_CERT_TEXT = (
-    "Где получить справку?\n\n"
-    "• В бассейне перед тренировкой — 70 ₽\n"
-    "• В вашей поликлинике у терапевта — бесплатно\n"
-    "• В медучреждениях, специализирующихся на справках — от 500 ₽"
+    "**Где получить справку?**\n\n"
+    "• В бассейне перед тренировкой — **70 ₽**\n"
+    "• В вашей поликлинике у терапевта — **бесплатно**\n"
+    "• В медучреждениях, специализирующихся на справках — **от 500 ₽**"
 )
 
 def normalize_ru_phone_to_plus7(text: str) -> Optional[str]:
@@ -394,7 +394,10 @@ async def run_bot() -> None:
     @dp.callback_query(F.data == "sw:cert")
     async def sw_cert(cq: CallbackQuery):
         await cq.answer()
-        await cq.message.answer(SW_CERT_TEXT)
+        await cq.message.answer(
+            SW_CERT_TEXT,
+            parse_mode="MarkdownV2"
+        )
 
     @dp.callback_query(F.data == "sw:prep")
     async def sw_prep(cq: CallbackQuery):
@@ -404,7 +407,10 @@ async def run_bot() -> None:
     @dp.callback_query(F.data == "sw:take")
     async def sw_take(cq: CallbackQuery):
         await cq.answer()
-        await cq.message.answer(SW_TAKE_TEXT)
+        await cq.message.answer(
+            SW_TAKE_TEXT,
+            parse_mode="MarkdownV2"
+        )
 
     @dp.message(CommandStart())
     async def start(m: Message):
